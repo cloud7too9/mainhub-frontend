@@ -108,7 +108,7 @@ describe("widgets act on the active layer only", () => {
     store().removeItem("panel-aufgaben");
     expect(active().items.some((i) => i.id === "panel-aufgaben")).toBe(false);
     store().duplicateItem("panel-dateien");
-    expect(active().items.filter((i) => i.panelTyp === "dateien")).toHaveLength(2);
+    expect(active().items.filter((i) => i.tool === "dateien")).toHaveLength(2);
   });
 
   it("moves a widget in fine steps and rejects collisions", () => {
@@ -124,18 +124,52 @@ describe("widgets act on the active layer only", () => {
     expect(t.y + t.h).toBeLessThanOrEqual(active().zeilen);
   });
 
-  it("resizes freely in cell steps and respects minimum size, edges and collisions", () => {
-    // Dateien liegt bei (0,16) mit 32×16, darunter ist frei.
-    expect(store().resizeItem("panel-dateien", 29, 23)).toBe(true);
-    expect(active().items.find((i) => i.id === "panel-dateien")).toMatchObject({ w: 29, h: 23 });
-    // Größer als die Fläche wird am unteren Rand begrenzt, ohne zu verschieben.
-    store().resizeItem("panel-dateien", 29, 500);
-    expect(active().items.find((i) => i.id === "panel-dateien")).toMatchObject({ y: 16, h: 32 });
-    // Aufgaben hat minHoehe 8: kleiner wird auf 8 begrenzt.
-    store().resizeItem("panel-aufgaben", 24, 1);
-    expect(active().items.find((i) => i.id === "panel-aufgaben")!.h).toBe(8);
-    // Breiter würde in Projektstatus hineinragen.
-    expect(store().resizeItem("panel-aufgaben", 30, 8)).toBe(false);
+  it("switches between the sizes the tool offers, keeping the position", () => {
+    // Dateien liegt bei (0,16) in „Mittel“ (32×16); darunter ist frei.
+    expect(store().setItemSize("panel-dateien", "gross")).toBe(true);
+    expect(active().items.find((i) => i.id === "panel-dateien")).toMatchObject({
+      size: "gross",
+      x: 0,
+      y: 16,
+      w: 32,
+      h: 24,
+    });
+    expect(store().setItemSize("panel-aufgaben", "klein")).toBe(true);
+    expect(active().items.find((i) => i.id === "panel-aufgaben")).toMatchObject({ w: 16, h: 8 });
+  });
+
+  it("rejects sizes that collide, leave the area or the tool does not offer", () => {
+    // Aufgaben „Groß“ (32×24) würde in Projektstatus hineinragen.
+    expect(store().setItemSize("panel-aufgaben", "gross")).toBe(false);
+    // Tool-Start liegt am rechten Rand; „Leiste“ (32×8) passt dort nicht.
+    expect(store().setItemSize("panel-toolstart", "leiste")).toBe(false);
+    expect(store().setItemSize("panel-aufgaben", "riesig")).toBe(false);
+    expect(active().items.find((i) => i.id === "panel-aufgaben")!.size).toBe("mittel");
+  });
+
+  it("adds widgets in the requested size and falls back to smaller sizes", () => {
+    store().addLayer();
+    expect(store().addItem("aufgaben", "klein")).toBe(true);
+    expect(active().items[0]).toMatchObject({ tool: "aufgaben", size: "klein", w: 16, h: 8 });
+    // Den Rest der Fläche bis auf einen 16×8-Streifen füllen.
+    const l = store().layers.find((x) => x.id === store().activeLayerId)!;
+    useWorkspaceStore.setState({
+      layers: store().layers.map((x) =>
+        x.id === l.id
+          ? {
+              ...x,
+              items: [
+                { id: "fill", tool: "letzteInhalte", titel: "F", size: "gross", x: 0, y: 8, w: 96, h: 40 },
+                { id: "fill2", tool: "letzteInhalte", titel: "F", size: "gross", x: 32, y: 0, w: 64, h: 8 },
+                ...x.items,
+              ],
+            }
+          : x,
+      ),
+    });
+    // „Groß“ passt nicht mehr, „Klein“ (16×8) schon – neben dem ersten Widget.
+    expect(store().addItem("dateien", "gross")).toBe(true);
+    expect(active().items.at(-1)).toMatchObject({ tool: "dateien", size: "klein", x: 16, y: 0 });
   });
 
   it("reports when a layer is full", () => {

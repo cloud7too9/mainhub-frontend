@@ -1,25 +1,21 @@
 import type { Id } from "../../../shared/types/common.types";
 
-export type PanelTyp =
-  | "schnellnotiz"
-  | "aufgaben"
-  | "dateien"
-  | "projektstatus"
-  | "toolstart"
-  | "letzteInhalte";
-
+/**
+ * Ein Widget ist ein auf dem Raster platziertes Tool. Es bestimmt selbst,
+ * in welcher der vom Tool angebotenen Größen es erscheint und wo es liegt.
+ * `w` und `h` entsprechen immer der gewählten Größe des Tools.
+ */
 export interface LayoutItem {
   id: Id;
-  panelTyp: PanelTyp;
+  /** ID des Tools, das Inhalte und verfügbare Größen bestimmt. */
+  tool: string;
   titel: string;
+  /** ID der gewählten Tool-Größe. */
+  size: string;
   x: number;
   y: number;
   w: number;
   h: number;
-  minW?: number;
-  minH?: number;
-  maxW?: number;
-  maxH?: number;
 }
 
 /**
@@ -43,15 +39,3 @@ export interface WorkspaceData {
   layers: WorkspaceLayout[];
   activeLayerId: Id;
 }
-
-export interface PanelDefinition {
-  typ: PanelTyp;
-  standardTitel: string;
-  standardBreite: number;
-  standardHoehe: number;
-  minBreite: number;
-  minHoehe: number;
-  erlaubtResize: boolean;
-}
-
-export type EditMode = "normal" | "edit";

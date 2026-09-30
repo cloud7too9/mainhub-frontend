@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import type { Id } from "../../../shared/types/common.types";
-import type { LayoutItem, PanelTyp, WorkspaceData, WorkspaceLayout } from "./workspace.types";
+import type { LayoutItem, WorkspaceData, WorkspaceLayout } from "./workspace.types";
 import { DEFAULT_LAYOUT } from "./default-layout";
-import { PANEL_REGISTRY } from "./panel-registry";
+import type { ToolDefinition, ToolSize } from "../../tools/tool.types";
+import { getStandardSize, getTool, getToolSize } from "../../tools/registry";
 import { clampItemToGrid, findFreePosition } from "../lib/layout-utils";
 import { hasCollision } from "../lib/collision-utils";
+import { sizeAndSmaller, sizeFitsAt } from "../lib/widget-sizes";
 import { loadWorkspaceFromStorage, saveWorkspaceToStorage } from "../lib/storage";
 
 export const LAYER_NAME_MAX_LENGTH = 40;
@@ -24,9 +26,17 @@ interface WorkspaceState {
 
   // Widgets – wirken immer auf den aktiven Layer.
   moveItem: (id: Id, x: number, y: number) => boolean;
-  resizeItem: (id: Id, w: number, h: number) => boolean;
-  /** false, wenn auf dem Layer kein Platz mehr frei ist. */
-  addItem: (typ: PanelTyp) => boolean;
+  /**
+   * Wechselt ein Widget auf eine andere vom Tool angebotene Größe. Die
+   * Position bleibt; false, wenn die Größe dort nicht passt.
+   */
+  setItemSize: (id: Id, sizeId: string) => boolean;
+  /**
+   * Fügt ein Widget des Tools hinzu, in der gewünschten oder der
+   * Standardgröße; ist dafür kein Platz, in der nächstkleineren.
+   * false, wenn auf dem Layer kein Platz mehr frei ist.
+   */
+  addItem: (toolId: string, sizeId?: string) => boolean;
   removeItem: (id: Id) => void;
   /** false, wenn auf dem Layer kein Platz mehr frei ist. */
   duplicateItem: (id: Id) => boolean;
@@ -68,19 +78,17 @@ function normalizeLayerName(name: string): string {
 }
 
 /**
- * Sucht Platz für ein neues Widget: zuerst in Wunschgröße, dann in
- * Mindestgröße. `null`, wenn die Fläche voll ist.
+ * Sucht Platz für ein Widget: zuerst in der gewünschten Größe, dann in den
+ * kleineren Größen des Tools. `null`, wenn die Fläche voll ist.
  */
 function findSlot(
   layout: WorkspaceLayout,
-  preferred: { w: number; h: number },
-  minimum: { w: number; h: number },
-): { x: number; y: number; w: number; h: number } | null {
-  for (const size of [preferred, minimum]) {
-    const w = Math.min(size.w, layout.spalten);
-    const h = Math.min(size.h, layout.zeilen);
-    const pos = findFreePosition(layout.items, w, h, layout.spalten, layout.zeilen);
-    if (pos) return { ...pos, w, h };
+  tool: ToolDefinition,
+  preferred: ToolSize,
+): { x: number; y: number; w: number; h: number; size: string } | null {
+  for (const size of sizeAndSmaller(tool, preferred)) {
+    const pos = findFreePosition(layout.items, size.w, size.h, layout.spalten, layout.zeilen);
+    if (pos) return { ...pos, w: size.w, h: size.h, size: size.id };
   }
   return null;
 }
@@ -130,42 +138,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return true;
     },
 
-    resizeItem: (id, w, h) => {
+    setItemSize: (id, sizeId) => {
       const layout = selectActiveLayer(get());
       const target = layout.items.find((i) => i.id === id);
-      if (!target) return false;
-      const def = PANEL_REGISTRY[target.panelTyp];
-      if (!def.erlaubtResize) return false;
-      const minW = Math.min(target.minW ?? def.minBreite, layout.spalten);
-      const minH = Math.min(target.minH ?? def.minHoehe, layout.zeilen);
-      // Skalieren verschiebt das Widget nicht: Die obere linke Ecke bleibt,
-      // die Größe endet am Rand der Fläche.
-      const clampedW = Math.max(minW, Math.min(Math.round(w), layout.spalten - target.x));
-      const clampedH = Math.max(minH, Math.min(Math.round(h), layout.zeilen - target.y));
-      const candidate = clampItemToGrid(
-        { ...target, w: clampedW, h: clampedH },
-        layout.spalten,
-        layout.zeilen,
-      );
-      if (candidate.w === target.w && candidate.h === target.h) return false;
-      if (hasCollision(candidate, layout.items)) return false;
-      commitActiveItems(layout.items.map((i) => (i.id === id ? candidate : i)));
+      const tool = target && getTool(target.tool);
+      const size = tool && getToolSize(tool, sizeId);
+      if (!target || !size || size.id === target.size) return false;
+      if (!sizeFitsAt(target, size, layout.items, layout.spalten, layout.zeilen)) return false;
+      const next = { ...target, size: size.id, w: size.w, h: size.h };
+      commitActiveItems(layout.items.map((i) => (i.id === id ? next : i)));
       return true;
     },
 
-    addItem: (typ) => {
+    addItem: (toolId, sizeId) => {
       const layout = selectActiveLayer(get());
-      const def = PANEL_REGISTRY[typ];
-      const slot = findSlot(
-        layout,
-        { w: def.standardBreite, h: def.standardHoehe },
-        { w: def.minBreite, h: def.minHoehe },
-      );
+      const tool = getTool(toolId);
+      if (!tool) return false;
+      const preferred = (sizeId && getToolSize(tool, sizeId)) || getStandardSize(tool);
+      const slot = findSlot(layout, tool, preferred);
       if (!slot) return false;
       const item: LayoutItem = {
-        id: nextId(`panel-${typ}`),
-        panelTyp: typ,
-        titel: def.standardTitel,
+        id: nextId(`widget-${tool.id}`),
+        tool: tool.id,
+        titel: tool.titel,
         ...slot,
       };
       commitActiveItems([...layout.items, item], { addPanelOpen: false });
@@ -184,16 +179,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     duplicateItem: (id) => {
       const layout = selectActiveLayer(get());
       const target = layout.items.find((i) => i.id === id);
-      if (!target) return false;
-      const def = PANEL_REGISTRY[target.panelTyp];
-      const slot = findSlot(
-        layout,
-        { w: target.w, h: target.h },
-        { w: target.minW ?? def.minBreite, h: target.minH ?? def.minHoehe },
-      );
+      const tool = target && getTool(target.tool);
+      if (!target || !tool) return false;
+      const size = getToolSize(tool, target.size) ?? getStandardSize(tool);
+      const slot = findSlot(layout, tool, size);
       if (!slot) return false;
-      const copy: LayoutItem = { ...target, id: nextId(`panel-${target.panelTyp}`), ...slot };
-      commitActiveItems([...layout.items, copy]);
+      commitActiveItems([...layout.items, { ...target, id: nextId(`widget-${tool.id}`), ...slot }]);
       return true;
     },
 

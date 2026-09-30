@@ -1,6 +1,7 @@
 import type { LayoutItem, WorkspaceData, WorkspaceLayout } from "../model/workspace.types";
 import { CANONICAL_SPALTEN, CANONICAL_ZEILEN, DEFAULT_LAYOUT } from "../model/default-layout";
-import { clampItemToGrid, fitItemsToRows } from "./layout-utils";
+import { fitItemsToRows } from "./layout-utils";
+import { normalizeWidgets, type RawWidget } from "./widget-sizes";
 
 export const STORAGE_KEY = "mainhub.workspace.v1";
 export const SCHEMA_VERSION = 3;
@@ -40,43 +41,36 @@ function isValidLayout(value: unknown): value is WorkspaceLayout {
 
 /**
  * Rechnet ein Layout aus dem groben Raster (Version 1 und 2) ins feine
- * Raster um und passt es in die feste Fläche ein. Item-eigene Mindestmaße
- * stammen aus dem alten Raster und werden verworfen; es gelten die der
- * Registry.
+ * Raster um. Größen rasten danach auf die Größen der Tools ein.
  */
 export function migrateLegacyLayout(layout: WorkspaceLayout): WorkspaceLayout {
   const legacyCols = layout.spalten > 0 ? layout.spalten : 12;
   const fx = CANONICAL_SPALTEN / legacyCols;
-  const scaled: LayoutItem[] = layout.items.map(
-    ({ minW: _minW, minH: _minH, maxW: _maxW, maxH: _maxH, ...item }) => ({
-      ...item,
-      x: Math.round(item.x * fx),
-      w: Math.max(1, Math.round(item.w * fx)),
-      y: item.y * LEGACY_ROW_FACTOR,
-      h: Math.max(1, item.h * LEGACY_ROW_FACTOR),
-    }),
-  );
-  const items = fitItemsToRows(scaled, CANONICAL_ZEILEN).map((it) =>
-    clampItemToGrid(it, CANONICAL_SPALTEN, CANONICAL_ZEILEN),
-  );
+  const scaled = (layout.items as RawWidget[]).map((item) => ({
+    ...item,
+    x: Math.round((item.x ?? 0) * fx),
+    w: Math.max(1, Math.round((item.w ?? 1) * fx)),
+    y: (item.y ?? 0) * LEGACY_ROW_FACTOR,
+    h: Math.max(1, (item.h ?? 1) * LEGACY_ROW_FACTOR),
+  }));
+  return normalizeLayout({
+    ...layout,
+    items: fitItemsToRows(scaled, CANONICAL_ZEILEN) as LayoutItem[],
+  });
+}
+
+/**
+ * Stellt sicher, dass ein Layout im aktuellen Raster liegt und seine Widgets
+ * zu den aktuellen Tools passen (siehe `normalizeWidgets`).
+ */
+function normalizeLayout(layout: WorkspaceLayout): WorkspaceLayout {
   return {
     id: layout.id,
     name: layout.name,
     spalten: CANONICAL_SPALTEN,
     zeilen: CANONICAL_ZEILEN,
-    abstand: DEFAULT_LAYOUT.abstand,
-    items,
-  };
-}
-
-/** Stellt sicher, dass ein Layout im aktuellen Raster liegt. */
-function normalizeLayout(layout: WorkspaceLayout): WorkspaceLayout {
-  return {
-    ...layout,
-    spalten: CANONICAL_SPALTEN,
-    zeilen: CANONICAL_ZEILEN,
     abstand: typeof layout.abstand === "number" ? layout.abstand : DEFAULT_LAYOUT.abstand,
-    items: layout.items.map((it) => clampItemToGrid(it, CANONICAL_SPALTEN, CANONICAL_ZEILEN)),
+    items: normalizeWidgets(layout.items as RawWidget[], CANONICAL_SPALTEN, CANONICAL_ZEILEN),
   };
 }
 

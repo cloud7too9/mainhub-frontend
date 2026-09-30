@@ -10,13 +10,14 @@ import { selectActiveLayer, useWorkspaceStore } from "../model/workspace.store";
 import {
   cellSize,
   cellToPixel,
-  clamp,
   clampItemToGrid,
   type GridConfig,
   type PixelRect,
 } from "../lib/layout-utils";
 import { hasCollision } from "../lib/collision-utils";
-import { PANEL_REGISTRY } from "../model/panel-registry";
+import { getTool, getToolSize, getStandardSize } from "../../tools/registry";
+import type { ToolSize } from "../../tools/tool.types";
+import { nearestToolSize, resolveViewSize, sizeFitsAt } from "../lib/widget-sizes";
 import type { Id } from "../../../shared/types/common.types";
 import type { LayoutItem } from "../model/workspace.types";
 import { WorkspacePanel } from "./WorkspacePanel";
@@ -45,7 +46,8 @@ type DragState =
       pointerId: number;
       startPointer: { x: number; y: number };
       startSize: { w: number; h: number };
-      previewSize: { w: number; h: number };
+      /** Die Tool-Größe, auf die beim Loslassen eingerastet wird. */
+      previewSize: ToolSize;
       valid: boolean;
     };
 
@@ -76,7 +78,7 @@ export function WorkspaceGrid() {
   const selectPanel = useWorkspaceStore((s) => s.selectPanel);
   const setEditMode = useWorkspaceStore((s) => s.setEditMode);
   const moveItem = useWorkspaceStore((s) => s.moveItem);
-  const resizeItem = useWorkspaceStore((s) => s.resizeItem);
+  const setItemSize = useWorkspaceStore((s) => s.setItemSize);
 
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -153,7 +155,8 @@ export function WorkspaceGrid() {
     e.preventDefault();
     e.stopPropagation();
     const item = layout.items.find((i) => i.id === id);
-    if (!item) return;
+    const tool = item && getTool(item.tool);
+    if (!item || !tool) return;
     selectPanel(id);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDrag({
@@ -162,7 +165,7 @@ export function WorkspaceGrid() {
       pointerId: e.pointerId,
       startPointer: { x: e.clientX, y: e.clientY },
       startSize: { w: item.w, h: item.h },
-      previewSize: { w: item.w, h: item.h },
+      previewSize: getToolSize(tool, item.size) ?? getStandardSize(tool),
       valid: true,
     });
   };
@@ -198,16 +201,14 @@ export function WorkspaceGrid() {
           valid: !hasCollision(target, layout.items),
         });
       } else {
-        const def = PANEL_REGISTRY[item.panelTyp];
-        const minW = Math.min(item.minW ?? def.minBreite, layout.spalten);
-        const minH = Math.min(item.minH ?? def.minHoehe, layout.zeilen);
-        const w = clamp(Math.round(drag.startSize.w + dx), minW, layout.spalten - item.x);
-        const h = clamp(Math.round(drag.startSize.h + dy), minH, layout.zeilen - item.y);
-        const candidate: LayoutItem = { ...item, w, h };
+        // Skalieren rastet auf die Größen ein, die das Tool anbietet.
+        const tool = getTool(item.tool);
+        if (!tool) return;
+        const size = nearestToolSize(tool, drag.startSize.w + dx, drag.startSize.h + dy);
         setDrag({
           ...drag,
-          previewSize: { w, h },
-          valid: !hasCollision(candidate, layout.items),
+          previewSize: size,
+          valid: sizeFitsAt(item, size, layout.items, layout.spalten, layout.zeilen),
         });
       }
     };
@@ -218,7 +219,7 @@ export function WorkspaceGrid() {
         moveItem(drag.id, drag.previewCell.x, drag.previewCell.y);
       }
       if (drag.kind === "resize" && drag.valid) {
-        resizeItem(drag.id, drag.previewSize.w, drag.previewSize.h);
+        setItemSize(drag.id, drag.previewSize.id);
       }
       setDrag({ kind: "idle" });
     };
@@ -233,7 +234,7 @@ export function WorkspaceGrid() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
     };
-  }, [drag, cell.w, cell.h, layout, moveItem, resizeItem]);
+  }, [drag, cell.w, cell.h, layout, moveItem, setItemSize]);
 
   const hasSize = size.width > 0 && size.height > 0;
 
@@ -251,18 +252,34 @@ export function WorkspaceGrid() {
         </div>
       ) : (
         hasSize &&
-        displayLayout.items.map((item) => (
-          <WorkspacePanel
-            key={item.id}
-            item={item}
-            rect={cellToPixel(item.x, item.y, item.w, item.h, config)}
-            editMode={editMode}
-            arrangeable={canArrange}
-            selected={selectedPanelId === item.id}
-            onHeaderPointerDown={onHeaderPointerDown}
-            onResizePointerDown={onResizePointerDown}
-          />
-        ))
+        displayLayout.items.map((item) => {
+          const tool = getTool(item.tool);
+          if (!tool) return null;
+          const chosen = getToolSize(tool, item.size) ?? getStandardSize(tool);
+          // In abgeleiteten Layouts (Tablet/Mobil) kann der Kasten kleiner
+          // sein; dann zeigt das Tool die größte Ansicht, die hineinpasst.
+          const viewSize = resolveViewSize(
+            tool,
+            chosen,
+            (s) =>
+              Math.round((s.w * displayLayout.spalten) / layout.spalten) <= item.w &&
+              Math.round((s.h * displayLayout.zeilen) / layout.zeilen) <= item.h,
+          );
+          return (
+            <WorkspacePanel
+              key={item.id}
+              item={item}
+              tool={tool}
+              viewSize={viewSize}
+              rect={cellToPixel(item.x, item.y, item.w, item.h, config)}
+              editMode={editMode}
+              arrangeable={canArrange}
+              selected={selectedPanelId === item.id}
+              onHeaderPointerDown={onHeaderPointerDown}
+              onResizePointerDown={onResizePointerDown}
+            />
+          );
+        })
       )}
       {drag.kind !== "idle" && (
         <DragPreview drag={drag} config={config} layout={displayLayout.items} />
@@ -290,6 +307,7 @@ function DragPreview({
   }
   return (
     <div
+      data-testid="drag-preview"
       style={{
         position: "absolute",
         left: rect.left,
@@ -302,6 +320,12 @@ function DragPreview({
         "rounded-panel border-2 border-dashed",
         drag.valid ? "border-accent bg-accent/10" : "border-danger bg-danger/10",
       ].join(" ")}
-    />
+    >
+      {drag.kind === "resize" && (
+        <span className="absolute bottom-1 left-1.5 rounded bg-surface-raised px-1.5 py-0.5 text-[11px] text-text">
+          {drag.previewSize.label}
+        </span>
+      )}
+    </div>
   );
 }

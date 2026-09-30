@@ -1,11 +1,14 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { LayoutItem } from "../model/workspace.types";
 import type { PixelRect } from "../lib/layout-utils";
-import { PanelContentRenderer } from "./PanelContentRenderer";
+import type { ToolDefinition, ToolSize } from "../../tools/tool.types";
 import { PanelToolbar } from "./PanelToolbar";
 
 interface Props {
   item: LayoutItem;
+  tool: ToolDefinition;
+  /** Ansicht, die das Tool rendern soll (kann auf Mobil kleiner sein als die gewählte Größe). */
+  viewSize: ToolSize;
   rect: PixelRect;
   editMode: boolean;
   /** Verschieben/Skalieren erlaubt (Bearbeitungsmodus im Desktop-Raster). */
@@ -16,8 +19,11 @@ interface Props {
   onResizePointerDown: (e: ReactPointerEvent, id: string) => void;
 }
 
+/** Rahmen eines Widgets: Kopfzeile, Werkzeugleiste und die Ansicht des Tools. */
 export function WorkspacePanel({
   item,
+  tool,
+  viewSize,
   rect,
   editMode,
   arrangeable,
@@ -25,9 +31,14 @@ export function WorkspacePanel({
   onHeaderPointerDown,
   onResizePointerDown,
 }: Props) {
+  const View = tool.View;
+  const canResize = arrangeable && tool.sizes.length > 1;
   return (
     <div
       data-panel-id={item.id}
+      data-tool={tool.id}
+      data-size={item.size}
+      data-view-size={viewSize.id}
       style={{
         position: "absolute",
         left: rect.left,
@@ -46,7 +57,7 @@ export function WorkspacePanel({
     >
       <div
         className={[
-          "long-press-target flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5 text-sm font-medium sm:px-3 sm:py-2",
+          "long-press-target flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5 text-sm font-medium sm:px-3",
           editMode ? "bg-surface-raised" : "",
           arrangeable ? "cursor-move touch-none" : "",
         ].join(" ")}
@@ -54,12 +65,12 @@ export function WorkspacePanel({
         onContextMenu={(e) => e.preventDefault()}
       >
         <span className="truncate">{item.titel}</span>
-        {editMode && <PanelToolbar panelId={item.id} />}
+        {editMode && <PanelToolbar item={item} tool={tool} showSizes={arrangeable} />}
       </div>
-      <div className="flex-1 overflow-auto p-2.5 sm:p-3">
-        <PanelContentRenderer typ={item.panelTyp} />
+      <div className="min-h-0 flex-1 overflow-auto p-2.5">
+        <View size={viewSize} />
       </div>
-      {arrangeable && (
+      {canResize && (
         <div
           role="presentation"
           aria-label="Größe ändern"

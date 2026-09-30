@@ -17,8 +17,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   items: [
     {
       id: "panel-schnellnotiz",
-      panelTyp: "schnellnotiz",
+      tool: "schnellnotiz",
       titel: "Schnellnotiz",
+      size: "mittel",
       x: 0,
       y: 0,
       w: 24,
@@ -26,8 +27,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
     },
     {
       id: "panel-aufgaben",
-      panelTyp: "aufgaben",
+      tool: "aufgaben",
       titel: "Aufgaben",
+      size: "mittel",
       x: 24,
       y: 0,
       w: 24,
@@ -35,8 +37,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
     },
     {
       id: "panel-projektstatus",
-      panelTyp: "projektstatus",
+      tool: "projektstatus",
       titel: "Projektstatus",
+      size: "mittel",
       x: 48,
       y: 0,
       w: 32,
@@ -44,8 +47,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
     },
     {
       id: "panel-toolstart",
-      panelTyp: "toolstart",
+      tool: "toolstart",
       titel: "Tool-Start",
+      size: "raster",
       x: 80,
       y: 0,
       w: 16,
@@ -53,8 +57,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
     },
     {
       id: "panel-dateien",
-      panelTyp: "dateien",
+      tool: "dateien",
       titel: "Dateien",
+      size: "mittel",
       x: 0,
       y: 16,
       w: 32,
@@ -62,8 +67,9 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
     },
     {
       id: "panel-letzteInhalte",
-      panelTyp: "letzteInhalte",
+      tool: "letzteInhalte",
       titel: "Letzte Inhalte",
+      size: "mittel",
       x: 32,
       y: 16,
       w: 32,

@@ -52,8 +52,10 @@ describe("workspace storage", () => {
     const item = v2.layers[0].items[0];
     expect(v2.layers[0].spalten).toBe(96);
     expect(v2.layers[0].zeilen).toBe(48);
-    expect(item).toMatchObject({ x: 24, w: 24, y: 10, h: 10 });
-    expect(item.minW).toBeUndefined();
+    // 3×2 im alten Raster → 24×10 im feinen → rastet auf „Mittel“ (24×16) ein.
+    expect(item).toMatchObject({ tool: "aufgaben", size: "mittel", x: 24, y: 10, w: 24, h: 16 });
+    expect("minW" in item).toBe(false);
+    expect("panelTyp" in item).toBe(false);
   });
 
   it("fits legacy layouts that were taller than the area", () => {
@@ -101,6 +103,19 @@ describe("workspace storage", () => {
     expect(
       parsePersistedWorkspace({ version: 2, layers: [DEFAULT_LAYOUT, { id: "y" }], activeLayerId: "y" }),
     ).toBeNull();
+  });
+
+  it("drops widgets of unknown tools and snaps unknown sizes", () => {
+    const layer = {
+      ...DEFAULT_LAYOUT,
+      items: [
+        { id: "a", tool: "gibt-es-nicht", titel: "?", size: "mittel", x: 0, y: 0, w: 16, h: 8 },
+        { id: "b", tool: "dateien", titel: "D", size: "riesig", x: 0, y: 0, w: 17, h: 9 },
+      ],
+    };
+    const parsed = parsePersistedWorkspace({ version: 3, layers: [layer], activeLayerId: layer.id })!;
+    expect(parsed.layers[0].items).toHaveLength(1);
+    expect(parsed.layers[0].items[0]).toMatchObject({ id: "b", size: "klein", w: 16, h: 8 });
   });
 
   it("clears stored data", () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal } from "../../../shared/ui/Modal";
-import { PANEL_REGISTRY, PANEL_TYPEN } from "../model/panel-registry";
+import { TOOLS } from "../../tools/registry";
 import { useWorkspaceStore } from "../model/workspace.store";
 
 export function AddPanelModal() {
@@ -21,21 +21,36 @@ export function AddPanelModal() {
           lege einen neuen Layer an.
         </p>
       )}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-        {PANEL_TYPEN.map((typ) => {
-          const def = PANEL_REGISTRY[typ];
-          return (
-            <button
-              key={typ}
-              type="button"
-              onClick={() => setNoSpace(!addItem(typ))}
-              className="flex min-h-[44px] items-center rounded-md border border-border bg-surface px-3 py-2.5 text-left text-sm font-medium transition-colors hover:border-accent hover:bg-surface-raised sm:py-3"
-            >
-              {def.standardTitel}
-            </button>
-          );
-        })}
-      </div>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+        {TOOLS.map((tool) => (
+          <li
+            key={tool.id}
+            className="flex flex-col gap-2 rounded-md border border-border bg-surface px-3 py-2.5"
+          >
+            <div>
+              <div className="text-sm font-medium">{tool.titel}</div>
+              <div className="text-xs text-text-muted">{tool.beschreibung}</div>
+            </div>
+            <div role="group" aria-label={`${tool.titel}: Größe wählen`} className="flex flex-wrap gap-1.5">
+              {tool.sizes.map((size) => (
+                <button
+                  key={size.id}
+                  type="button"
+                  onClick={() => setNoSpace(!addItem(tool.id, size.id))}
+                  className={[
+                    "min-h-[32px] rounded-md border px-2.5 text-xs transition-colors hover:border-accent hover:bg-surface-raised",
+                    size.id === tool.standardSize
+                      ? "border-accent/60 text-text"
+                      : "border-border text-text-muted",
+                  ].join(" ")}
+                >
+                  {size.label}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
     </Modal>
   );
 }

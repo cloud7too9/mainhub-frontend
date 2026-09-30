@@ -41,11 +41,10 @@ die App aus.
 ## Später
 
 - Voraussetzungs-Schema für Verträge zwischen Tools und Oberfläche.
-  Verschoben, weil es noch keinen Inhalt gibt, auf den es sich beziehen
-  kann. Ein Tool deklariert, was es braucht; die Oberfläche, was sie
-  garantiert; nicht erfüllbare Tools werden nicht angeboten oder mit
-  Hinweis gezeigt. Die heutige `PanelDefinition` ist ein Vorläufer. Die
-  konkreten Voraussetzungen ergeben sich beim weiteren Bauen.
+  Begonnen: Tools deklarieren ihre Größen in einer `ToolDefinition`, ein
+  Vertragstest prüft sie. Weitere Voraussetzungen (Datenquellen,
+  Berechtigungen, unterstützte Bildschirmgrößen) kommen dazu, sobald ein
+  Tool sie braucht.
 - Docker-Widget: Container-Status anzeigen, starten und stoppen. Braucht
   ein Backend oder einen abgesicherten Proxy zur Docker-API, weil der
   Browser nicht direkt auf den Docker-Socket zugreifen kann.
@@ -63,6 +62,10 @@ die App aus.
 
 ## Erledigt
 
+- 2026-10-01 · Tools bestimmen Inhalte und angebotene Größen; jede Größe hat
+  eine eigene Ansicht. Widgets halten Größe und Position. Größenwahl per
+  Knopf oder einrastendem Ziehen, Größenwahl beim Hinzufügen, kompakte
+  Ansichten auf dem Handy, Vertragstest für alle Tools.
 - 2026-09-30 · Feste Fläche ohne Seiten-Scroll, feines Raster (96 × 48 auf
   Desktop) mit freien Größen statt fester Stufen, Gitterlinien im
   Bearbeitungszustand auf allen Bildschirmgrößen, Umrechnung gespeicherter

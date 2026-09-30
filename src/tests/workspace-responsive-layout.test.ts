@@ -10,7 +10,8 @@ import { rectsOverlap } from "../features/workspace/lib/layout-utils";
 
 const mkItem = (overrides: Partial<LayoutItem>): LayoutItem => ({
   id: "x",
-  panelTyp: "schnellnotiz",
+  tool: "schnellnotiz",
+  size: "mittel",
   titel: "x",
   x: 0,
   y: 0,
@@ -133,7 +134,8 @@ describe("adaptLayoutToBreakpoint", () => {
       const adapted = out.items.find((i) => i.id === original.id);
       expect(adapted).toBeDefined();
       expect(adapted!.titel).toBe(original.titel);
-      expect(adapted!.panelTyp).toBe(original.panelTyp);
+      expect(adapted!.tool).toBe(original.tool);
+      expect(adapted!.size).toBe(original.size);
     }
   });
 });

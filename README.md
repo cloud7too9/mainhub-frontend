@@ -34,12 +34,13 @@ docker run --rm -p 8080:80 mainhub-frontend
 
 - `src/app/` – App-Einstieg und Routing
 - `src/pages/WorkspacePage.tsx` – Haupt-Workspace
+- `src/features/tools/` – Tools: Inhalte, Ansichten und angebotene Größen
 - `src/features/workspace/` – Grid, Widgets, Layer, Layout-Logik, Store
 - `src/shared/` – Wiederverwendbare UI und Tokens
 - `src/tests/` – Unit-Tests
 
-Designregeln: feines Raster (96 × 48 Zellen auf Desktop), freie Größen mit
-Mindestmaßen, feste Fläche ohne Seiten-Scroll, getrennter Bearbeitungsmodus.
+Designregeln: feines Raster (96 × 48 Zellen auf Desktop), Größen kommen von
+den Tools, feste Fläche ohne Seiten-Scroll, getrennter Bearbeitungsmodus.
 Nächste Schritte und offene Ideen stehen in `docs/ROADMAP.md`.
 
 ## Raster und Fläche
@@ -49,8 +50,28 @@ Header und ist in ein festes Raster geteilt; die Zellgröße ergibt sich aus
 der verfügbaren Breite und Höhe. Widgets bleiben immer vollständig in der
 Fläche. Ist kein Platz mehr frei, meldet „Widget hinzufügen“ das, statt die
 Seite zu verlängern. Im Bearbeitungszustand zeigt die Fläche feine
-Gitterlinien je Zelle und kräftigere alle 8 Zellen. Größen sind frei in
-Zellschritten wählbar; es gelten nur die Mindestmaße aus der Registry.
+Gitterlinien je Zelle und kräftigere alle 8 Zellen. Positionen sind frei in
+Zellschritten wählbar, Größen kommen von den Tools.
+
+## Tools und Widgets
+
+- **Tools** bestimmen Titel, Inhalte und welche Größen sie anbieten
+  (`src/features/tools/tools/`). Jede Größe hat eine eigene Ansicht mit
+  eigenem Umfang, z. B. „Klein“ nur eine Kennzahl, „Groß“ die ganze Liste.
+  Wie viele Größen es gibt und welche Form sie haben, entscheidet das Tool.
+- **Widgets** sind platzierte Tools. Sie halten ihre gewählte Größe und ihre
+  Position auf dem Raster.
+- **Die Oberfläche** stellt nur die Fläche. Im Bearbeitungszustand wählt man
+  die Größe über die Knöpfe im Widget-Kopf oder zieht am Griff; beides rastet
+  auf die Größen des Tools ein. Im Dialog „Widget hinzufügen“ wählt man Tool
+  und Größe direkt.
+- Auf Tablet und Handy zeigt ein Widget die größte Ansicht seines Tools, die
+  in den abgeleiteten Platz passt.
+
+Ein neues Tool ist eine Datei mit einer `ToolDefinition` plus ein Eintrag in
+`src/features/tools/registry.ts`. Der Test `tools-contract.test.ts` prüft für
+jedes Tool den Vertrag mit der Oberfläche: eindeutige IDs, Größen im Raster,
+aufsteigend sortiert, gültige Standardgröße.
 
 ## Bildschirmgrößen
 

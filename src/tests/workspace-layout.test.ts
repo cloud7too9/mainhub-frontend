@@ -15,7 +15,8 @@ const config = { cols: 96, rows: 48, gap: 8, containerWidth: 1440, containerHeig
 
 const mkItem = (overrides: Partial<LayoutItem>): LayoutItem => ({
   id: "x",
-  panelTyp: "schnellnotiz",
+  tool: "schnellnotiz",
+  size: "mittel",
   titel: "x",
   x: 0,
   y: 0,
